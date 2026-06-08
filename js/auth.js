@@ -44,14 +44,20 @@ async function loadClerkSDK() {
 /**
  * Initialize Clerk JS and apply UI route guards
  */
+/**
+ * Initialize Clerk JS and apply UI route guards.
+ * Clerk auto-initializes via data-clerk-publishable-key on the <script> tag.
+ * We just wait for window.Clerk.loaded to be true before proceeding.
+ */
 async function initAuth() {
     try {
         console.log("Initializing Clerk SDK...");
         const Clerk = await loadClerkSDK();
-        
-        await Clerk.load({
-            publishableKey: CLERK_PUBLISHABLE_KEY
-        });
+
+        // If Clerk hasn't finished loading yet (auto-init is async), call load()
+        if (!Clerk.loaded) {
+            await Clerk.load({ publishableKey: CLERK_PUBLISHABLE_KEY });
+        }
 
         window.authConfig.isInitialized = true;
         window.authConfig.user = Clerk.user;
@@ -67,7 +73,7 @@ async function initAuth() {
         // Show fallback UI for network/load failures
         const loadingScreen = document.getElementById("loading-overlay");
         if (loadingScreen) {
-            loadingScreen.innerHTML = `<div class="error-msg">Auth Service Offline. Check your connection.</div>`;
+            loadingScreen.innerHTML = `<div class="error-msg">Auth Service Offline. Check your connection.<br><small>${error.message}</small></div>`;
         }
     }
 }
