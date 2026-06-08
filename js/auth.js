@@ -3,8 +3,8 @@
  * Uses Clerk Frontend CDN SDK (Vanilla JS)
  */
 
-// Clerk publishable key — use pk_live_* for production (Vercel), pk_test_* for localhost only
-const CLERK_PUBLISHABLE_KEY = "pk_test_c2luY2VyZS1zdW5iaXJkLTE2LmNsZXJrLmFjY291bnRzLmRldiQ";
+// Clerk publishable key — pk_live_* for production (Vercel)
+const CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsuYWktbWVldGluZy1hc3Npc3RhbnQtc2V2ZW4udmVyY2VsJA";
 // Clerk SDK loaded from jsDelivr CDN — works on all domains including Vercel
 const CLERK_SDK_URL = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js";
 
