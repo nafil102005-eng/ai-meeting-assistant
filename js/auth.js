@@ -3,8 +3,8 @@
  * Uses Clerk Frontend CDN SDK (Vanilla JS)
  */
 
-// Clerk publishable key — pk_live_* for production (Vercel)
-const CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsuYWktbWVldGluZy1hc3Npc3RhbnQtc2V2ZW4udmVyY2VsJA";
+// Clerk publishable key — pk_test_ dev key (works on localhost + Vercel with allowed redirect URLs)
+const CLERK_PUBLISHABLE_KEY = "pk_test_dG9nZXRoZXItbW9zcXVpdG8tOTIuY2xlcmsuYWNjb3VudHMuZGV2JA";
 // Clerk v4 CDN: sets window.Clerk automatically on load (v5 changed this API, v4 matches our usage)
 const CLERK_SDK_URL = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@4/dist/clerk.browser.js";
 
