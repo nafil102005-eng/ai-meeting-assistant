@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Meeting Assistant - Create Account</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="js/auth.js" defer></script>
+</head>
+<body>
+
+    <!-- Loading Screen Layer -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Loading Security Handshake...</div>
+    </div>
+
+    <!-- Header Navigation -->
+    <header>
+        <div class="logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                <path d="M19 10v1a7 7 0 0 1-14 0v-1"/>
+                <line x1="12" x2="12" y1="19" y2="22"/>
+            </svg>
+            AI Meeting Assistant
+        </div>
+        <nav>
+            <a href="index.html" class="btn-primary" style="text-decoration: none;">Sign In Instead</a>
+        </nav>
+    </header>
+
+    <!-- Content Panel wrapper -->
+    <main class="auth-wrapper">
+        <div class="auth-card">
+            <div class="auth-header">
+                <h1>Join the Assistant</h1>
+                <p>Register to generate meeting analytics and reports</p>
+            </div>
+            
+            <!-- Target Mount Container for Clerk Sign-Up -->
+            <div id="signup-container"></div>
+        </div>
+    </main>
+
+    <!-- Logo gradient registration -->
+    <svg style="width:0;height:0;position:absolute;" aria-hidden="true" focusable="false">
+        <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#6366f1" />
+            <stop offset="100%" stop-color="#06b6d4" />
+        </linearGradient>
+    </svg>
+
+</body>
+</html>

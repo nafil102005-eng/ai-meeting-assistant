@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Meeting Assistant</title>
+    <!-- Google Fonts link -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #07080d;
+            --panel-bg: rgba(255, 255, 255, 0.03);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --primary-color: #6366f1; /* Indigo */
+            --accent-color: #06b6d4;  /* Cyan */
+            --primary-glow: rgba(99, 102, 241, 0.15);
+            --text-main: #f9fafb;
+            --text-muted: #9ca3af;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            width: 360px;
+            height: 520px;
+            background-color: var(--bg-dark);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            color: var(--text-main);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--panel-border);
+        }
+
+        /* Header block */
+        header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--panel-border);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            background: rgba(255, 255, 255, 0.01);
+            backdrop-filter: blur(10px);
+        }
+
+        .logo-img {
+            width: 24px;
+            height: 24px;
+        }
+
+        .title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Container body */
+        .container {
+            flex: 1;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            overflow-y: auto;
+        }
+
+        /* Status card */
+        .status-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(16px);
+        }
+
+        .status-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .status-value {
+            font-size: 0.9rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--text-muted);
+        }
+
+        .status-dot.active {
+            background-color: var(--success-color);
+            box-shadow: 0 0 8px var(--success-color);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 1; }
+            100% { opacity: 0.4; }
+        }
+
+        /* Control Buttons */
+        .controls {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        button {
+            flex: 1;
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            border: none;
+            outline: none;
+            color: white;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, var(--primary-color), #4f46e5);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+        }
+
+        .btn-start:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, var(--danger-color), #dc2626);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+        }
+
+        .btn-stop:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--panel-border);
+            color: var(--text-main);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        /* Display Panel Content */
+        .display-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 0.85rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            flex: 1;
+            min-height: 150px;
+            backdrop-filter: blur(16px);
+        }
+
+        .panel-header {
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--primary-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .text-area {
+            flex: 1;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            color: var(--text-muted);
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: 'Outfit', sans-serif;
+            max-height: 200px;
+            padding-right: 4px;
+        }
+
+        /* Scrollbar styling */
+        .text-area::-webkit-scrollbar, .container::-webkit-scrollbar {
+            width: 4px;
+        }
+        .text-area::-webkit-scrollbar-thumb, .container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+
+        /* Summary panel styling */
+        .summary-box {
+            display: none;
+            background: rgba(99, 102, 241, 0.05);
+            border: 1px solid rgba(99, 102, 241, 0.15);
+            border-radius: 10px;
+            padding: 0.85rem;
+            margin-top: 0.5rem;
+        }
+
+        .summary-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--accent-color);
+            margin-bottom: 0.4rem;
+        }
+
+        .summary-content {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.45;
+        }
+    </style>
+    <script src="popup.js" defer></script>
+</head>
+<body>
+
+    <header>
+        <img class="logo-img" src="icon.png" alt="logo">
+        <div class="title">AI Meeting Assistant</div>
+    </header>
+
+    <div class="container">
+        <!-- Status -->
+        <div class="status-card">
+            <span class="status-label">Engine State</span>
+            <div class="status-value">
+                <div id="status-indicator" class="status-dot"></div>
+                <span id="status-text">Idle</span>
+            </div>
+        </div>
+
+        <!-- Start/Stop Controls -->
+        <div class="controls">
+            <button id="start-btn" class="btn-start">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polygon points="10 8 16 12 10 16 10 8"/>
+                </svg>
+                Record
+            </button>
+            <button id="stop-btn" class="btn-stop" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="4" width="16" height="16" rx="2" ry="2"/>
+                </svg>
+                Stop
+            </button>
+        </div>
+
+        <!-- Transcript Panel -->
+        <div class="display-panel">
+            <div class="panel-header">
+                <span>Live Transcript</span>
+                <span id="char-count" style="font-size: 0.75rem; text-transform: none; color: var(--text-muted);">0 chars</span>
+            </div>
+            <div id="transcript-box" class="text-area">Click Record to start capturing meeting audio...</div>
+        </div>
+
+        <!-- Actions -->
+        <div style="display: flex; gap: 0.5rem; flex-direction: column;">
+            <button id="summarize-btn" class="btn-secondary" disabled style="width: 100%;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                    <line x1="12" y1="22.08" x2="12" y2="12"/>
+                </svg>
+                Generate Summary & Save
+            </button>
+        </div>
+
+        <!-- Summary Panel -->
+        <div id="summary-panel" class="summary-box">
+            <div class="summary-title">AI Summary & Analytics</div>
+            <div id="summary-content" class="summary-content">Processing...</div>
+        </div>
+    </div>
+
+</body>
+</html>

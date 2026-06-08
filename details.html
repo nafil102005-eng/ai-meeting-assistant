@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Meeting Assistant - Meeting Details</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="js/auth.js" defer></script>
+    <script src="js/navigation.js" defer></script>
+    <!-- jsPDF Dynamic Library CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="js/pdf.js" type="module"></script>
+    <script type="module">
+        let activeMeeting = null;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const idParam = urlParams.get("id");
+            if (idParam) {
+                fetchMeetingDetails(idParam);
+            } else {
+                showError("No meeting ID was provided. Please return to the Meeting History page.");
+            }
+            setupTabControls();
+            setupPdfExport();
+        });
+
+        async function fetchMeetingDetails(id) {
+            const overlay = document.getElementById("loading-overlay");
+            if (overlay) overlay.classList.remove("hidden");
+
+            try {
+                // Ensure authConfig is fully loaded and initialized
+                if (!window.authConfig || !window.authConfig.isInitialized) {
+                    await new Promise((resolve) => {
+                        const check = setInterval(() => {
+                            if (window.authConfig && window.authConfig.isInitialized) {
+                                clearInterval(check);
+                                resolve();
+                            }
+                        }, 50);
+                    });
+                }
+
+                // If Clerk failed to sign-in, redirect is handled by auth.js but verify
+                if (!window.Clerk || !window.Clerk.user) {
+                    showError("You must be logged in to view meeting reports.");
+                    return;
+                }
+
+                const headers = await getAuthHeaders();
+                const response = await fetch(`/api/meetings/${id}`, { headers });
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        throw new Error("The requested meeting report could not be found.");
+                    } else if (response.status === 403) {
+                        throw new Error("Access Denied: You do not have permission to view this report.");
+                    } else {
+                        throw new Error(`Server returned error status: ${response.status}`);
+                    }
+                }
+
+                activeMeeting = await response.json();
+                renderMeetingDetails();
+
+                if (overlay) overlay.classList.add("hidden");
+            } catch (error) {
+                console.error("Failed to load meeting details:", error);
+                showError(error.message);
+            }
+        }
+
+        function showError(message) {
+            const overlay = document.getElementById("loading-overlay");
+            if (overlay) {
+                overlay.classList.remove("hidden");
+                overlay.innerHTML = `
+                    <div style="text-align: center; padding: 3rem 2rem; max-width: 450px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; backdrop-filter: blur(16px); margin: 2rem auto;">
+                        <div style="font-size: 3rem; margin-bottom: 1.5rem;">⚠️</div>
+                        <div class="loading-text" style="color: var(--primary-color); font-weight: 700; margin-bottom: 1rem; font-size: 1.25rem;">Report Unavailable</div>
+                        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 2rem; line-height: 1.6;">${message}</p>
+                        <a href="history.html" class="btn-primary" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; width: 100%;">
+                            Return to History
+                        </a>
+                    </div>
+                `;
+            }
+        }
+
+        function formatSummaryText(text) {
+            if (!text) return "No summary available.";
+            
+            // Clean up basic markdown from Gemini summary
+            let html = text
+                .replace(/###\s+(.*)/g, '<h3 style="color: var(--primary-color); font-size: 1.1rem; margin-top: 1.25rem; margin-bottom: 0.5rem; font-weight: 600; font-family:\'Outfit\',sans-serif;">$1</h3>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/^\s*-\s+(.*)/gm, '<li style="margin-left: 1.25rem; margin-bottom: 0.4rem; list-style-type: disc; line-height: 1.5;">$1</li>');
+            
+            html = html.replace(/\n/g, "<br>");
+            return html;
+        }
+
+        function renderMeetingDetails() {
+            if (!activeMeeting) return;
+
+            document.getElementById("meeting-title-txt").textContent = activeMeeting.title;
+            
+            const dateStr = activeMeeting.date ? new Date(activeMeeting.date).toLocaleDateString("en-US", {
+                year: 'numeric', month: 'long', day: 'numeric'
+            }) : "Unknown Date";
+            
+            const minutes = Math.round((activeMeeting.duration_seconds || 0) / 60);
+            const durationStr = minutes < 60 ? `${minutes} min` : `${Math.floor(minutes/60)}h ${minutes%60}m`;
+            
+            document.getElementById("meeting-meta-txt").textContent = `${activeMeeting.platform || "Web Speech"} • ${dateStr} • ${durationStr}`;
+            document.getElementById("transcript-text-box").textContent = activeMeeting.transcript || "No transcript recorded.";
+            document.getElementById("summary-text-box").innerHTML = formatSummaryText(activeMeeting.summary);
+
+            // Render action item checklist
+            const actionsContainer = document.getElementById("actions-list-box");
+            const actions = activeMeeting.actionItems || activeMeeting.actions || [];
+            if (actions.length === 0) {
+                actionsContainer.innerHTML = `<li style="color: var(--text-muted); font-style: italic; padding: 1.5rem; text-align: center;">No action items recorded.</li>`;
+            } else {
+                actionsContainer.innerHTML = actions.map((act, i) => `
+                    <li class="action-row ${act.status === 'completed' ? 'completed' : ''}">
+                        <input type="checkbox" class="action-checkbox" ${act.status === 'completed' ? 'checked' : ''} onchange="toggleActionCompleteness(this, ${i})">
+                        <span style="flex: 1; font-size: 0.95rem;">${act.description || act.desc}</span>
+                        ${act.assignee ? `
+                            <span style="font-size: 0.8rem; background: rgba(255,255,255,0.06); padding: 0.2rem 0.5rem; border-radius: 4px; color: var(--text-muted); font-weight: 500;">
+                                ${act.assignee}
+                            </span>
+                        ` : ''}
+                    </li>
+                `).join("");
+            }
+
+            // Render decisions bullet list
+            const decisionsContainer = document.getElementById("decisions-list-box");
+            const decisions = activeMeeting.decisions || [];
+            if (decisions.length === 0) {
+                decisionsContainer.innerHTML = `<li style="color: var(--text-muted); font-style: italic; padding: 1.5rem; text-align: center;">No decisions recorded.</li>`;
+            } else {
+                decisionsContainer.innerHTML = decisions.map(dec => `
+                    <li class="action-row" style="gap:0.75rem;">
+                        <div style="background: var(--primary-glow); color: var(--primary-color); padding: 0.3rem; border-radius: 50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; font-size:0.7rem; font-weight:700;">D</div>
+                        <span style="flex: 1; font-size: 0.95rem;">${dec.description || dec.desc}</span>
+                        ${dec.decider ? `<span style="font-size: 0.8rem; font-style: italic; color: var(--text-muted);">Decided by: ${dec.decider}</span>` : ''}
+                    </li>
+                `).join("");
+            }
+        }
+
+        window.toggleActionCompleteness = function(checkbox, index) {
+            const row = checkbox.closest(".action-row");
+            const actions = activeMeeting.actionItems || activeMeeting.actions || [];
+            if (!actions[index]) return;
+
+            if (checkbox.checked) {
+                row.classList.add("completed");
+                actions[index].status = "completed";
+            } else {
+                row.classList.remove("completed");
+                actions[index].status = "pending";
+            }
+        };
+
+        function setupTabControls() {
+            const tabs = document.querySelectorAll(".tab-btn");
+            const contents = document.querySelectorAll(".tab-content");
+
+            tabs.forEach(tab => {
+                tab.addEventListener("click", () => {
+                    tabs.forEach(t => t.classList.remove("active"));
+                    contents.forEach(c => c.classList.remove("active"));
+
+                    tab.classList.add("active");
+                    const targetContent = document.getElementById(tab.getAttribute("data-tab"));
+                    if (targetContent) targetContent.classList.add("active");
+                });
+            });
+        }
+
+        function setupPdfExport() {
+            const exportBtn = document.getElementById("export-pdf-btn");
+            if (!exportBtn) return;
+
+            exportBtn.addEventListener("click", async () => {
+                if (!activeMeeting) {
+                    alert("Meeting data has not loaded fully yet.");
+                    return;
+                }
+
+                try {
+                    exportBtn.disabled = true;
+                    exportBtn.innerHTML = `
+                        <div class="spinner" style="width: 14px; height: 14px; margin-right: 0.5rem; display: inline-block; vertical-align: middle; border-width: 2px;"></div>
+                        Exporting PDF...
+                    `;
+
+                    await window.pdfExporter.generatePdf(activeMeeting, { download: true });
+
+                } catch (err) {
+                    console.error("PDF download failure:", err);
+                    alert("Unable to generate PDF report: " + err.message);
+                } finally {
+                    exportBtn.disabled = false;
+                    exportBtn.innerHTML = `
+                        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Export PDF Report
+                    `;
+                }
+            });
+        }
+    </script>
+</head>
+<body>
+
+    <!-- Loading Screen Layer -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Loading Analytical Report...</div>
+    </div>
+
+    <!-- Main Navigation will be injected dynamically here -->
+
+    <!-- Details Page Layout -->
+    <main class="dashboard-wrapper">
+        
+        <!-- Header Info Card -->
+        <section class="welcome-banner" style="padding: 2rem; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem;">
+            <div>
+                <h1 id="meeting-title-txt" style="font-size: 2rem; font-weight: 700; margin-bottom: 0.25rem; letter-spacing: -0.02em;">Meeting Details</h1>
+                <p id="meeting-meta-txt" style="color: var(--text-muted); font-size: 0.95rem;">Loading Metadata...</p>
+            </div>
+            
+            <div style="display: flex; gap: 0.85rem;">
+                <button id="export-pdf-btn" class="btn-primary">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Export PDF Report
+                </button>
+            </div>
+        </section>
+
+        <!-- Details split grid layout -->
+        <div class="detail-layout">
+            
+            <!-- Left Panel: Raw Transcript -->
+            <section class="section-box">
+                <h2 class="section-title">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    Raw Transcript
+                </h2>
+                <div class="scrollable-pane" style="font-size: 0.975rem; line-height: 1.6; color: var(--text-muted); white-space: pre-wrap; font-family: 'Outfit', sans-serif;" id="transcript-text-box">
+                    Loading Transcript...
+                </div>
+            </section>
+
+            <!-- Right Panel: Tabbed Summary -->
+            <section class="section-box">
+                <div class="tabs-header">
+                    <button class="tab-btn active" data-tab="tab-summary">AI Summary</button>
+                    <button class="tab-btn" data-tab="tab-actions">Action Items</button>
+                    <button class="tab-btn" data-tab="tab-decisions">Decisions</button>
+                </div>
+
+                <!-- Tab 1: AI Summary Content -->
+                <div class="tab-content active" id="tab-summary">
+                    <div id="summary-text-box" style="font-size: 0.975rem; color: var(--text-muted);">
+                        Generating Executive Summary...
+                    </div>
+                </div>
+
+                <!-- Tab 2: Action Items Content -->
+                <div class="tab-content" id="tab-actions">
+                    <ul class="action-list" id="actions-list-box">
+                        <!-- Populated dynamically -->
+                    </ul>
+                </div>
+
+                <!-- Tab 3: Decisions Content -->
+                <div class="tab-content" id="tab-decisions">
+                    <ul class="decision-list" id="decisions-list-box">
+                        <!-- Populated dynamically -->
+                    </ul>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+</body>
+</html>

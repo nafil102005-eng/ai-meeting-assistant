@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Meeting Assistant - Meeting History</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="js/auth.js" defer></script>
+    <script src="js/navigation.js" defer></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const checkInterval = setInterval(() => {
+                if (window.authConfig && window.authConfig.isInitialized) {
+                    clearInterval(checkInterval);
+                    if (window.Clerk && window.Clerk.user) {
+                        document.getElementById("user-display-email").textContent = 
+                            window.Clerk.user.primaryEmailAddress.emailAddress;
+                    }
+                }
+            }, 100);
+
+            setupSearchFilter();
+        });
+
+        function setupSearchFilter() {
+            const searchInput = document.getElementById("search-input");
+            const platformSelect = document.getElementById("platform-select");
+            const cards = document.querySelectorAll(".meeting-card");
+
+            function filterCards() {
+                const query = searchInput.value.toLowerCase();
+                const platform = platformSelect.value;
+
+                cards.forEach(card => {
+                    const title = card.querySelector(".card-title").textContent.toLowerCase();
+                    const body = card.querySelector(".card-desc").textContent.toLowerCase();
+                    const cardPlatform = card.getAttribute("data-platform");
+
+                    const matchesSearch = title.includes(query) || body.includes(query);
+                    const matchesPlatform = platform === "all" || cardPlatform === platform;
+
+                    if (matchesSearch && matchesPlatform) {
+                        card.style.display = "flex";
+                    } else {
+                        card.style.display = "none";
+                    }
+                });
+            }
+
+            searchInput.addEventListener("input", filterCards);
+            platformSelect.addEventListener("change", filterCards);
+        }
+    </script>
+</head>
+<body>
+
+    <!-- Loading Screen Layer -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Loading History Logs...</div>
+    </div>
+
+    <!-- Main Navigation will be injected dynamically here -->
+
+    <!-- Main Content Wrapper -->
+    <main class="dashboard-wrapper">
+        <div class="welcome-banner" style="padding: 2rem; margin-bottom: 2rem;">
+            <h1 style="font-size: 2rem; font-weight: 700; margin-bottom: 0.25rem;">Meeting Archive</h1>
+            <p style="color: var(--text-muted);">Browse, filter, and search through all your recorded meetings and AI-extracted details.</p>
+        </div>
+
+        <!-- Filters Bar Component -->
+        <section class="filters-bar">
+            <div class="search-input-wrapper">
+                <svg class="search-icon" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="search-input" class="search-input" placeholder="Search title or transcript keywords...">
+            </div>
+            
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <select id="platform-select" class="filter-select">
+                    <option value="all">All Platforms</option>
+                    <option value="Google Meet">Google Meet</option>
+                    <option value="Zoom">Zoom</option>
+                    <option value="Web Speech">Web Speech</option>
+                </select>
+            </div>
+        </section>
+
+        <!-- Meeting Cards Grid Layout -->
+        <section class="meetings-grid">
+            <!-- Card 1 -->
+            <article class="meeting-card" data-platform="Google Meet">
+                <div class="meeting-meta">
+                    <span style="background: rgba(99, 102, 241, 0.1); color: var(--primary-color); padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 600; font-size: 0.75rem;">Google Meet</span>
+                    <span>• Jun 6, 2026</span>
+                    <span>• 30 min</span>
+                </div>
+                <h3 class="card-title" style="font-size: 1.25rem; font-weight: 600;"><a href="details.html?id=a0000000-0000-0000-0000-000000000001">Q3 Marketing Alignment</a></h3>
+                <p class="card-desc" style="color: var(--text-muted); font-size: 0.925rem; line-height: 1.5; flex: 1;">
+                    Allocated asset campaigns to Sarah and Bob. Discussed Linkedin social budget adjustments and finalized graphic designs.
+                </p>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: 0.85rem;">
+                    <span style="color: var(--success-color); font-weight: 500;">● Completed</span>
+                    <a href="details.html?id=a0000000-0000-0000-0000-000000000001" style="color: var(--primary-color); font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem;">
+                        View Insights
+                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                    </a>
+                </div>
+            </article>
+
+            <!-- Card 2 -->
+            <article class="meeting-card" data-platform="Web Speech">
+                <div class="meeting-meta">
+                    <span style="background: rgba(6, 182, 212, 0.1); color: var(--accent-color); padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 600; font-size: 0.75rem;">Web Speech</span>
+                    <span>• Jun 7, 2026</span>
+                    <span>• 40 min</span>
+                </div>
+                <h3 class="card-title" style="font-size: 1.25rem; font-weight: 600;"><a href="details.html?id=a0000000-0000-0000-0000-000000000002">Project Skynet Launch Sync</a></h3>
+                <p class="card-desc" style="color: var(--text-muted); font-size: 0.925rem; line-height: 1.5; flex: 1;">
+                    High-stakes discussion regarding automated defensive launch schedules. Rejected delay queries and approved safety security layers.
+                </p>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: 0.85rem;">
+                    <span style="color: var(--success-color); font-weight: 500;">● Completed</span>
+                    <a href="details.html?id=a0000000-0000-0000-0000-000000000002" style="color: var(--primary-color); font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem;">
+                        View Insights
+                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                    </a>
+                </div>
+            </article>
+
+            <!-- Card 3 -->
+            <article class="meeting-card" data-platform="Zoom">
+                <div class="meeting-meta">
+                    <span style="background: rgba(99, 102, 241, 0.1); color: var(--primary-color); padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 600; font-size: 0.75rem;">Zoom</span>
+                    <span>• Jun 8, 2026</span>
+                    <span>• 60 min</span>
+                </div>
+                <h3 class="card-title" style="font-size: 1.25rem; font-weight: 600;"><a href="details.html?id=b0000000-0000-0000-0000-000000000001">Resistance Core Infrastructure</a></h3>
+                <p class="card-desc" style="color: var(--text-muted); font-size: 0.925rem; line-height: 1.5; flex: 1;">
+                    Mitigating central node communication bottlenecks. Approved data migration to serverless Neon PostgreSQL connection pools.
+                </p>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: 0.85rem;">
+                    <span style="color: var(--success-color); font-weight: 500;">● Completed</span>
+                    <a href="details.html?id=b0000000-0000-0000-0000-000000000001" style="color: var(--primary-color); font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem;">
+                        View Insights
+                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                    </a>
+                </div>
+            </article>
+        </section>
+    </main>
+
+</body>
+</html>

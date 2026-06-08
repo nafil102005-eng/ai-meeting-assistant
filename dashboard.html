@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Meeting Assistant - Dashboard</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="js/auth.js" defer></script>
+    <script src="js/navigation.js" defer></script>
+    <script src="js/recorder.js" defer></script>
+    <script>
+        let dashboardData = null;
+        let sortAscending = false;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            // Retrieve User metadata from Clerk session
+            const checkInterval = setInterval(() => {
+                if (window.authConfig && window.authConfig.isInitialized) {
+                    clearInterval(checkInterval);
+                    if (window.Clerk && window.Clerk.user) {
+                        document.getElementById("user-display-name").textContent = 
+                            window.Clerk.user.fullName || window.Clerk.user.username || "User";
+                        document.getElementById("user-display-email").textContent = 
+                            window.Clerk.user.primaryEmailAddress.emailAddress;
+                        
+                        // Load live data stats from backend
+                        loadDashboardStats();
+                    }
+                }
+            }, 100);
+
+            // Connect Web Speech API recorder
+            const initRecorderInterval = setInterval(() => {
+                if (window.meetingRecorderInstance) {
+                    clearInterval(initRecorderInterval);
+                    setupRealRecorderUI();
+                }
+            }, 50);
+
+            setupTabControls();
+            setupSearchAndSort();
+        });
+
+        async function loadDashboardStats() {
+            try {
+                const headers = await window.getAuthHeaders();
+                const res = await fetch("/api/dashboard/stats", { headers });
+                
+                if (!res.ok) {
+                    throw new Error(`Server returned status ${res.status}`);
+                }
+
+                dashboardData = await res.json();
+                renderDashboard();
+            } catch (err) {
+                console.error("Failed loading dashboard statistics:", err.message);
+                renderEmptyState(`Failed to synchronize workspace metrics: ${err.message}`);
+            }
+        }
+
+        function renderDashboard() {
+            if (!dashboardData) return;
+
+            // 1. Populate stats counts
+            document.getElementById("total-meetings-value").textContent = dashboardData.totalMeetings;
+            document.getElementById("total-summaries-value").textContent = dashboardData.totalMeetings; 
+            document.getElementById("pending-actions-value").textContent = dashboardData.stats.pending + dashboardData.stats.in_progress;
+            document.getElementById("completed-tasks-value").textContent = dashboardData.stats.completed;
+
+            // 2. Handle Empty State
+            if (dashboardData.totalMeetings === 0) {
+                renderEmptyState("Welcome to AI Meeting Assistant! Toggle the Microphone below to record your first session.");
+                return;
+            }
+
+            // 3. Render lists
+            renderRecentMeetingsList();
+            renderActionItemsList();
+            renderDecisionsList();
+        }
+
+        function renderRecentMeetingsList() {
+            const container = document.getElementById("recent-meetings-list");
+            if (!container || !dashboardData) return;
+
+            const searchQuery = document.getElementById("recent-search-input").value.toLowerCase();
+            
+            // Filter
+            let meetings = dashboardData.recentMeetings.filter(m => 
+                m.title.toLowerCase().includes(searchQuery) || 
+                (m.summary && m.summary.toLowerCase().includes(searchQuery))
+            );
+
+            // Sort
+            meetings.sort((a, b) => {
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                return sortAscending ? dateA - dateB : dateB - dateA;
+            });
+
+            if (meetings.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: var(--text-dark); padding: 1.5rem; font-size: 0.9rem;">No matching meetings found.</div>';
+                return;
+            }
+
+            container.innerHTML = meetings.map(m => `
+                <div class="meeting-card" style="padding: 1.15rem; gap: 0.5rem; background: rgba(0,0,0,0.15);">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 0.75rem; color: var(--primary-color); font-weight: 600;">${m.platform}</span>
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">${new Date(m.date).toLocaleDateString()}</span>
+                    </div>
+                    <h4 style="font-size: 1.05rem; font-weight: 600;"><a href="details.html?id=${m.id}">${m.title}</a></h4>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                        ${m.summary ? m.summary.replace(/###/g, "").trim() : "No summary text."}
+                    </p>
+                    <a href="details.html?id=${m.id}" style="font-size: 0.8rem; color: var(--primary-color); font-weight: 600; text-align: right; display: block; margin-top: 0.25rem;">View Analytics →</a>
+                </div>
+            `).join("");
+        }
+
+        function renderActionItemsList() {
+            const container = document.getElementById("dashboard-actions-list");
+            if (!container || !dashboardData) return;
+
+            const actions = dashboardData.actionItems;
+            if (actions.length === 0) {
+                container.innerHTML = '<li style="text-align: center; color: var(--text-dark); font-size: 0.9rem; padding: 1.5rem;">No action items extracted.</li>';
+                return;
+            }
+
+            container.innerHTML = actions.map(act => `
+                <li class="action-row ${act.status === 'completed' ? 'completed' : ''}" style="padding: 0.65rem 1rem; gap: 0.75rem; background: rgba(0,0,0,0.1); margin-bottom: 0.5rem; border-radius: 8px;">
+                    <input type="checkbox" class="action-checkbox" ${act.status === 'completed' ? 'checked' : ''} disabled>
+                    <div style="flex: 1;">
+                        <span style="font-size: 0.9rem; display: block; font-weight: 500;">${act.description}</span>
+                        <span style="font-size: 0.75rem; color: var(--text-dark);">${act.meeting_title}</span>
+                    </div>
+                    <span style="font-size: 0.75rem; background: rgba(255,255,255,0.04); padding: 0.15rem 0.4rem; border-radius: 4px; color: var(--text-muted);">
+                        ${act.assignee || 'Unassigned'}
+                    </span>
+                </li>
+            `).join("");
+        }
+
+        function renderDecisionsList() {
+            const container = document.getElementById("dashboard-decisions-list");
+            if (!container || !dashboardData) return;
+
+            const decisions = dashboardData.decisions;
+            if (decisions.length === 0) {
+                container.innerHTML = '<li style="text-align: center; color: var(--text-dark); font-size: 0.9rem; padding: 1.5rem;">No key decisions logged.</li>';
+                return;
+            }
+
+            container.innerHTML = decisions.map(dec => `
+                <li class="action-row" style="padding: 0.65rem 1rem; gap: 0.75rem; background: rgba(0,0,0,0.1); margin-bottom: 0.5rem; border-radius: 8px;">
+                    <div style="background: var(--primary-glow); color: var(--primary-color); padding: 0.2rem; border-radius: 50%; width:20px; height:20px; display:flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:700;">D</div>
+                    <div style="flex: 1;">
+                        <span style="font-size: 0.9rem; display: block; font-weight: 500;">${dec.description}</span>
+                        <span style="font-size: 0.75rem; color: var(--text-dark);">${dec.meeting_title}</span>
+                    </div>
+                    <span style="font-size: 0.75rem; font-style: italic; color: var(--text-muted);">${dec.decider || 'Team'}</span>
+                </li>
+            `).join("");
+        }
+
+        function renderEmptyState(message) {
+            document.getElementById("total-meetings-value").textContent = "0";
+            document.getElementById("total-summaries-value").textContent = "0";
+            document.getElementById("pending-actions-value").textContent = "0";
+            document.getElementById("completed-tasks-value").textContent = "0";
+
+            document.getElementById("recent-meetings-list").innerHTML = `
+                <div style="text-align: center; padding: 3rem 1.5rem; color: var(--text-muted);">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom: 1rem; opacity: 0.4; stroke: var(--primary-color);">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="16" y1="2" x2="16" y2="6"/>
+                        <line x1="8" y1="2" x2="8" y2="6"/>
+                        <line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                    <p style="font-size: 0.975rem; line-height: 1.5;">${message}</p>
+                </div>
+            `;
+            document.getElementById("dashboard-actions-list").innerHTML = '<li style="text-align: center; color: var(--text-dark); font-size: 0.9rem; padding: 1rem;">No actions items pending.</li>';
+            document.getElementById("dashboard-decisions-list").innerHTML = '<li style="text-align: center; color: var(--text-dark); font-size: 0.9rem; padding: 1rem;">No key decisions logged.</li>';
+        }
+
+        function setupTabControls() {
+            const tabs = document.querySelectorAll(".tab-btn");
+            const contents = document.querySelectorAll(".tab-content");
+
+            tabs.forEach(tab => {
+                tab.addEventListener("click", () => {
+                    tabs.forEach(t => t.classList.remove("active"));
+                    contents.forEach(c => c.classList.remove("active"));
+
+                    tab.classList.add("active");
+                    const targetContent = document.getElementById(tab.getAttribute("data-tab"));
+                    if (targetContent) targetContent.classList.add("active");
+                });
+            });
+        }
+
+        function setupSearchAndSort() {
+            const searchInput = document.getElementById("recent-search-input");
+            const sortBtn = document.getElementById("sort-recent-btn");
+
+            searchInput.addEventListener("input", () => {
+                renderRecentMeetingsList();
+            });
+
+            sortBtn.addEventListener("click", () => {
+                sortAscending = !sortAscending;
+                sortBtn.innerHTML = `Sort Date ${sortAscending ? "▲" : "▼"}`;
+                renderRecentMeetingsList();
+            });
+        }
+
+        function setupRealRecorderUI() {
+            const recorder = window.meetingRecorderInstance;
+            const micBtn = document.getElementById("mic-btn");
+            const statusLabel = document.getElementById("record-status");
+            const previewBox = document.getElementById("transcript-preview");
+            const meetingNameInput = document.getElementById("meeting-name");
+            const saveBtn = document.getElementById("save-meeting-btn");
+            const pauseBtn = document.getElementById("pause-btn");
+
+            if (!recorder.isSupported()) {
+                statusLabel.innerHTML = '<span style="color: var(--error-color); font-weight:600;">● Unsupported Browser</span> - Please use Chrome / Safari.';
+                micBtn.disabled = true;
+                micBtn.style.opacity = "0.5";
+                return;
+            }
+
+            recorder.onTranscriptUpdate = (finalText, interimText) => {
+                let displayHtml = finalText;
+                if (interimText) {
+                    displayHtml += (displayHtml ? "<br><br>" : "") + `<em style="color: var(--primary-color); opacity: 0.85;">${interimText}...</em>`;
+                }
+                previewBox.innerHTML = displayHtml || '<span style="color: var(--text-dark);">Speaking data will show here...</span>';
+                previewBox.scrollTop = previewBox.scrollHeight;
+            };
+
+            recorder.onStateChange = (state) => {
+                updateUIState(state);
+            };
+
+            recorder.onError = (errorMsg) => {
+                statusLabel.innerHTML = `<span style="color: var(--error-color); font-weight:600;">● Engine Error: ${errorMsg}</span>`;
+            };
+
+            micBtn.addEventListener("click", () => {
+                if (!recorder.isRecording) {
+                    const title = meetingNameInput.value.trim() || "Weekly Sync";
+                    try {
+                        recorder.start(title);
+                    } catch (e) {
+                        alert("Microphone Access Required.");
+                    }
+                } else {
+                    if (recorder.isPaused) {
+                        recorder.resume();
+                    } else {
+                        recorder.pause();
+                    }
+                }
+            });
+
+            pauseBtn.addEventListener("click", () => {
+                if (recorder.isPaused) {
+                    recorder.resume();
+                } else {
+                    recorder.pause();
+                }
+            });
+
+            saveBtn.addEventListener("click", async () => {
+                if (!recorder.isRecording) return;
+                
+                const meetingDetails = recorder.stop();
+                saveBtn.disabled = true;
+                saveBtn.textContent = "Analyzing Summary...";
+
+                try {
+                    const headers = await window.getAuthHeaders();
+                    const response = await fetch("/api/meetings", {
+                        method: "POST",
+                        headers: headers,
+                        body: JSON.stringify({
+                            title: meetingDetails.title,
+                            platform: "Web Speech",
+                            duration_seconds: 120,
+                            transcript: meetingDetails.transcript
+                        })
+                    });
+
+                    if (response.ok) {
+                        alert("Success! Meeting analyzed and summarized.");
+                        // Reload dashboard to query fresh metrics
+                        loadDashboardStats();
+                    } else {
+                        alert("Failed to save. Storage offline.");
+                    }
+                } catch (err) {
+                    alert(`Network error saving meeting: ${err.message}`);
+                } finally {
+                    resetUI();
+                }
+            });
+
+            const wasRestored = recorder.loadState();
+            if (wasRestored) {
+                meetingNameInput.value = recorder.title;
+            }
+
+            function updateUIState(state) {
+                if (state.isRecording) {
+                    meetingNameInput.disabled = true;
+                    saveBtn.disabled = false;
+                    pauseBtn.style.display = "inline-flex";
+                    
+                    if (state.isPaused) {
+                        micBtn.classList.remove("recording");
+                        micBtn.innerHTML = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"/></svg>';
+                        statusLabel.innerHTML = '<span style="color: var(--warning-color); font-weight: 600;">● Recording Paused</span>';
+                        pauseBtn.textContent = "Resume";
+                        pauseBtn.className = "btn-primary";
+                    } else {
+                        micBtn.classList.add("recording");
+                        micBtn.innerHTML = '<div class="pulse-ring"></div><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+                        statusLabel.innerHTML = '<span style="color: var(--error-color); font-weight: 600;">● Live Recording</span> (Web Speech API Active)';
+                        pauseBtn.textContent = "Pause";
+                        pauseBtn.className = "btn-secondary";
+                    }
+                } else {
+                    resetUI();
+                }
+            }
+
+            function resetUI() {
+                micBtn.classList.remove("recording");
+                micBtn.innerHTML = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" x2="12" y1="19" y2="22"/></svg>';
+                statusLabel.innerHTML = '<span style="color: var(--text-muted);">● Standby</span> - Ready to Record';
+                meetingNameInput.disabled = false;
+                meetingNameInput.value = "";
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Analyze & Save Meeting';
+                pauseBtn.style.display = "none";
+                previewBox.innerHTML = '<span style="color: var(--text-dark);">Your real-time transcript preview will populate here when you toggle the microphone...</span>';
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <!-- Loading Screen Layer -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Verifying User Session...</div>
+    </div>
+
+    <!-- Shared Dynamic Navigation will mount here -->
+
+    <!-- Dashboard Main Layout -->
+    <main class="dashboard-wrapper">
+        
+        <!-- Welcome Block -->
+        <div class="welcome-banner">
+            <h1 style="font-size: 2.25rem; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -0.02em;">
+                Welcome back, <span id="user-display-name">Guest</span>!
+            </h1>
+            <p style="color: var(--text-muted); font-size: 1.05rem;">Start a new meeting to generate transcripts and instant AI action plans.</p>
+        </div>
+
+        <!-- Metrics Row -->
+        <section class="stats-row">
+            <div class="stat-card">
+                <span class="stat-label">Total Meetings</span>
+                <span class="stat-value" id="total-meetings-value">--</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">AI Summaries</span>
+                <span class="stat-value" id="total-summaries-value">--</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Pending Actions</span>
+                <span class="stat-value" id="pending-actions-value" style="color: var(--warning-color); -webkit-text-fill-color: var(--warning-color);">--</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Completed Tasks</span>
+                <span class="stat-value" id="completed-tasks-value" style="color: var(--success-color); -webkit-text-fill-color: var(--success-color);">--</span>
+            </div>
+        </section>
+
+        <!-- Main split dashboard grid -->
+        <div class="dashboard-grid">
+            
+            <!-- Left Panel: Start Recording Box -->
+            <section class="section-box">
+                <h2 class="section-title">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/></svg>
+                    New Live Meeting
+                </h2>
+                
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label" for="meeting-name">Meeting Title</label>
+                    <input type="text" id="meeting-name" class="form-input" placeholder="e.g. Weekly Marketing Sprint">
+                </div>
+
+                <div class="record-widget">
+                    <button id="mic-btn" class="mic-button">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                            <path d="M19 10v1a7 7 0 0 1-14 0v-1"/>
+                            <line x1="12" x2="12" y1="19" y2="22"/>
+                        </svg>
+                    </button>
+                    <div id="record-status" style="font-size: 0.925rem; font-weight: 500; color: var(--text-muted);">
+                        <span style="color: var(--text-muted);">● Standby</span> - Ready to Record
+                    </div>
+                    
+                    <div class="transcript-preview-box" id="transcript-preview">
+                        <span style="color: var(--text-dark);">Your real-time transcript preview will populate here when you toggle the microphone...</span>
+                    </div>
+                </div>
+
+                <div style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                    <button id="pause-btn" class="btn-secondary" style="display: none;">
+                        Pause
+                    </button>
+                    <button id="save-meeting-btn" class="btn-primary" disabled style="margin-left: auto;">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                        Analyze & Save Meeting
+                    </button>
+                </div>
+            </section>
+
+            <!-- Right Panel: Dynamic Tabbed Panels -->
+            <section class="section-box" style="margin-bottom: 2rem;">
+                <div class="tabs-header">
+                    <button class="tab-btn active" data-tab="tab-recent">Recent Meetings</button>
+                    <button class="tab-btn" data-tab="tab-actions">Action Items</button>
+                    <button class="tab-btn" data-tab="tab-decisions">Decisions</button>
+                </div>
+
+                <!-- Tab 1: Recent Meetings List -->
+                <div class="tab-content active" id="tab-recent">
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; align-items: center;">
+                        <input type="text" id="recent-search-input" class="search-input" style="padding: 0.4rem 0.8rem 0.4rem 0.8rem; font-size: 0.85rem;" placeholder="Search title...">
+                        <button id="sort-recent-btn" class="btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.25rem; white-space: nowrap;">
+                            Sort Date ▼
+                        </button>
+                    </div>
+                    <div id="recent-meetings-list" style="display: flex; flex-direction: column; gap: 1rem; max-height: 380px; overflow-y: auto; padding-right: 4px;">
+                        <!-- Dynamic meeting lists -->
+                    </div>
+                </div>
+
+                <!-- Tab 2: Action Items -->
+                <div class="tab-content" id="tab-actions">
+                    <ul class="action-list" id="dashboard-actions-list" style="max-height: 380px; overflow-y: auto; padding-right: 4px;">
+                        <!-- Dynamic actions checklist -->
+                    </ul>
+                </div>
+
+                <!-- Tab 3: Decisions -->
+                <div class="tab-content" id="tab-decisions">
+                    <ul class="decision-list" id="dashboard-decisions-list" style="max-height: 380px; overflow-y: auto; padding-right: 4px;">
+                        <!-- Dynamic decisions bullet points -->
+                    </ul>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Logo gradient registration -->
+    <svg style="width:0;height:0;position:absolute;" aria-hidden="true" focusable="false">
+        <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#6366f1" />
+            <stop offset="100%" stop-color="#06b6d4" />
+        </linearGradient>
+    </svg>
+
+</body>
+</html>

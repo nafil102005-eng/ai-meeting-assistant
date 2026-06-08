@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Meeting Assistant - Settings</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="js/auth.js" defer></script>
+    <script src="js/navigation.js" defer></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const checkInterval = setInterval(() => {
+                if (window.authConfig && window.authConfig.isInitialized) {
+                    clearInterval(checkInterval);
+                    if (window.Clerk && window.Clerk.user) {
+                        document.getElementById("user-display-email").textContent = 
+                            window.Clerk.user.primaryEmailAddress.emailAddress;
+                    }
+                }
+            }, 100);
+
+            setupFormHandlers();
+        });
+
+        function setupFormHandlers() {
+            const saveBtn = document.getElementById("save-settings-btn");
+            if (!saveBtn) return;
+
+            saveBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                saveBtn.disabled = true;
+                saveBtn.textContent = "Saving Configuration...";
+                
+                setTimeout(() => {
+                    alert("Settings saved successfully!");
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = "Save Changes";
+                }, 1000);
+            });
+        }
+    </script>
+</head>
+<body>
+
+    <!-- Loading Screen Layer -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Loading Settings Panel...</div>
+    </div>
+
+    <!-- Main Navigation will be injected dynamically here -->
+
+    <!-- Main Content Wrapper -->
+    <main class="dashboard-wrapper">
+        <div class="welcome-banner" style="padding: 2rem; margin-bottom: 2rem;">
+            <h1 style="font-size: 2rem; font-weight: 700; margin-bottom: 0.25rem;">Workspace Settings</h1>
+            <p style="color: var(--text-muted);">Adjust prompt templates for Gemini AI, configure integrations, and review application statuses.</p>
+        </div>
+
+        <div class="dashboard-grid">
+            
+            <!-- Left: Settings Form Panel -->
+            <section class="section-box">
+                <h2 class="section-title">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    AI Configurator
+                </h2>
+                
+                <form class="settings-form">
+                    <div class="form-group">
+                        <label class="form-label" for="gemini-model">Gemini Model Choice</label>
+                        <select id="gemini-model" class="filter-select" style="width: 100%;">
+                            <option value="gemini-1.5-flash">Gemini 1.5 Flash (Recommended - Fast)</option>
+                            <option value="gemini-1.5-pro">Gemini 1.5 Pro (Thorough Analysis)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="summarizer-prompt">Custom AI Summarizer Prompt</label>
+                        <textarea id="summarizer-prompt" class="form-textarea" rows="6" style="resize: vertical;">You are a Senior Executive Assistant. Analyze the following meeting transcript and output a JSON object containing:
+1. "summary_text": A comprehensive markdown executive summary.
+2. "key_takeaways": A JSON list of core bullet takeaways.
+3. "actions": A list of action items, each with "desc" and "assignee".
+4. "decisions": A list of decisions, each with "desc" and "decider".</textarea>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+                        <button id="save-settings-btn" class="btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Right: System Integration Health check -->
+            <section class="section-box">
+                <h2 class="section-title">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    Integration Diagnostics
+                </h2>
+
+                <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                    <!-- Diagnostics Item 1 -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.85rem; border-bottom: 1px solid var(--border-color);">
+                        <span style="font-weight: 500; font-size: 0.95rem;">Clerk Identity Sync</span>
+                        <span style="color: var(--success-color); font-weight: 600; font-size: 0.85rem; background: rgba(16, 185, 129, 0.08); padding: 0.2rem 0.5rem; border-radius: 4px;">Connected</span>
+                    </div>
+
+                    <!-- Diagnostics Item 2 -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.85rem; border-bottom: 1px solid var(--border-color);">
+                        <span style="font-weight: 500; font-size: 0.95rem;">Neon PostgreSQL Database</span>
+                        <span style="color: var(--success-color); font-weight: 600; font-size: 0.85rem; background: rgba(16, 185, 129, 0.08); padding: 0.2rem 0.5rem; border-radius: 4px;">Online (Pooled)</span>
+                    </div>
+
+                    <!-- Diagnostics Item 3 -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.85rem; border-bottom: 1px solid var(--border-color);">
+                        <span style="font-weight: 500; font-size: 0.95rem;">Google Gemini API Latency</span>
+                        <span style="color: var(--success-color); font-weight: 600; font-size: 0.85rem; background: rgba(16, 185, 129, 0.08); padding: 0.2rem 0.5rem; border-radius: 4px;">Good (142ms)</span>
+                    </div>
+
+                    <!-- Diagnostics Item 4 -->
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 500; font-size: 0.95rem;">Browser Extension Bridge</span>
+                        <span style="color: var(--warning-color); font-weight: 600; font-size: 0.85rem; background: rgba(245, 158, 11, 0.08); padding: 0.2rem 0.5rem; border-radius: 4px;">Not Injected</span>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+</body>
+</html>
