@@ -5,9 +5,9 @@
   "description": "Capture live meeting voice transcripts, view summaries, and sync directly with Neon DB.",
   "permissions": [
     "storage",
-    "offscreen",
     "scripting",
-    "activeTab"
+    "activeTab",
+    "tabs"
   ],
   "host_permissions": [
     "http://localhost:3000/*",

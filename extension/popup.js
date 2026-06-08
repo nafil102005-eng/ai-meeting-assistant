@@ -21,11 +21,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 2. Set up real-time listener for storage changes (updates transcript as we speak!)
     chrome.storage.onChanged.addListener((changes) => {
-        const stateUpdate = {};
-        for (let [key, { newValue }] of Object.entries(changes)) {
-            stateUpdate[key] = newValue;
-        }
-        updateUIState(stateUpdate);
+        // Fetch the full state instead of relying on partial updates to avoid UI desync
+        chrome.storage.local.get(["isRecording", "transcript", "summary", "isSummarizing"], (state) => {
+            updateUIState(state);
+        });
     });
 
     // 3. Button Action Listeners

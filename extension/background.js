@@ -3,17 +3,14 @@
  * Coordinates offscreen speech capture documents and handles backend API proxies.
  */
 
-const OFFSCREEN_DOCUMENT_PATH = "offscreen.html";
-let isCreatingDocument = null; // Lock to prevent concurrent offscreen creation calls
 let recordingStartTime = null;
+let recordingTabId = null;
 
 // --- API Configuration ---
-// Switch between local dev server and the Vercel production deployment.
-// Update PRODUCTION_URL to your actual Vercel deployment URL after deploying.
-const PRODUCTION_URL = "https://ai-meeting-assistant.vercel.app";
-const API_BASE_URL = (typeof location !== "undefined" && location.hostname === "localhost")
-    ? "http://localhost:3000"
-    : PRODUCTION_URL;
+const PRODUCTION_URL = "https://ai-meeting-assistant-seven.vercel.app";
+// Service workers do not have a location object, so checking for localhost fails. 
+// Always route requests to the deployed backend server.
+const API_BASE_URL = PRODUCTION_URL;
 
 // Initialize state parameters on installation
 chrome.runtime.onInstalled.addListener(() => {
@@ -57,70 +54,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 /**
- * Commences recording session, creating the offscreen capture DOM document
+ * Commences recording session by injecting the capture script into the active tab
  */
 async function startRecordingSession() {
     recordingStartTime = Date.now();
-    await chrome.storage.local.set({ isRecording: true, summary: "" });
-    await setupOffscreenDocument(OFFSCREEN_DOCUMENT_PATH);
+    await chrome.storage.local.set({ isRecording: true, summary: "", recordingStartTime });
+    
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!activeTab || activeTab.url.startsWith("chrome://") || activeTab.url.startsWith("chrome-extension://")) {
+        throw new Error("Cannot record on this page. Please switch to a regular website.");
+    }
+    
+    recordingTabId = activeTab.id;
+    await chrome.scripting.executeScript({
+        target: { tabId: recordingTabId },
+        files: ["content.js"]
+    });
+    console.log("Recording content script injected.");
 }
 
 /**
- * Concludes recording session, tearing down the offscreen document and saving duration
+ * Concludes recording session, stopping the capture script
  */
 async function stopRecordingSession() {
     await chrome.storage.local.set({ isRecording: false });
-    await closeOffscreenDocument();
-}
-
-/**
- * Creates offscreen document helper context safely if it does not already exist
- */
-async function setupOffscreenDocument(path) {
-    // Check if document already exists
-    if (await hasOffscreenDocument()) {
-        return;
+    if (recordingTabId) {
+        try {
+            await chrome.tabs.sendMessage(recordingTabId, { action: "STOP_VOICE_CAPTURE" });
+        } catch (e) {
+            console.warn("Could not send stop message to tab:", e);
+        }
+        recordingTabId = null;
     }
-
-    if (isCreatingDocument) {
-        await isCreatingDocument;
-        return;
-    }
-
-    isCreatingDocument = chrome.offscreen.createDocument({
-        url: path,
-        reasons: ["USER_MEDIA"], // Requesting access to user microphone
-        justification: "Continuous voice recording and transcribing of meetings."
-    });
-
-    await isCreatingDocument;
-    isCreatingDocument = null;
-    console.log("Offscreen recording document mounted.");
-}
-
-/**
- * Closes the active offscreen document securely
- */
-async function closeOffscreenDocument() {
-    if (!(await hasOffscreenDocument())) {
-        return;
-    }
-    await chrome.offscreen.closeDocument();
-    console.log("Offscreen recording document dismounted.");
-}
-
-/**
- * Asserts if offscreen document is currently mounted
- */
-async function hasOffscreenDocument() {
-    if (chrome.offscreen.hasDocument) {
-        return await chrome.offscreen.hasDocument();
-    }
-    // Fallback context validation for older browsers or environments
-    const matchedClients = await clients.matchAll({
-        type: "window"
-    });
-    return matchedClients.some(c => c.url.includes(OFFSCREEN_DOCUMENT_PATH));
+    console.log("Recording stopped.");
 }
 
 /**
@@ -169,13 +135,13 @@ async function generateSummaryAndSave() {
     await chrome.storage.local.set({ isSummarizing: true });
 
     try {
-        const { transcript } = await chrome.storage.local.get("transcript");
+        const { transcript, recordingStartTime: storedStartTime } = await chrome.storage.local.get(["transcript", "recordingStartTime"]);
         if (!transcript || transcript.trim().length < 20) {
             throw new Error("Transcript is too short to generate a summary (min 20 characters).");
         }
 
         const token = await fetchClerkToken();
-        const durationSecs = recordingStartTime ? Math.round((Date.now() - recordingStartTime) / 1000) : 60;
+        const durationSecs = storedStartTime ? Math.round((Date.now() - storedStartTime) / 1000) : 60;
 
         const response = await fetch(`${API_BASE_URL}/api/meetings`, {
             method: "POST",
