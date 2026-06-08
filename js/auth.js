@@ -3,9 +3,10 @@
  * Uses Clerk Frontend CDN SDK (Vanilla JS)
  */
 
-// Clerk publishable key from environment/configuration
+// Clerk publishable key — use pk_live_* for production (Vercel), pk_test_* for localhost only
 const CLERK_PUBLISHABLE_KEY = "pk_test_c2luY2VyZS1zdW5iaXJkLTE2LmNsZXJrLmFjY291bnRzLmRldiQ";
-const CLERK_FRONTEND_API = "https://sincere-sunbird-16.clerk.accounts.dev";
+// Clerk SDK loaded from jsDelivr CDN — works on all domains including Vercel
+const CLERK_SDK_URL = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js";
 
 // Global auth state configuration
 window.authConfig = {
@@ -24,7 +25,7 @@ async function loadClerkSDK() {
         }
 
         const script = document.createElement("script");
-        script.src = `${CLERK_FRONTEND_API}/npm/@clerk/clerk-js@latest/dist/clerk.browser.js`;
+        script.src = CLERK_SDK_URL;
         script.async = true;
         script.crossOrigin = "anonymous";
 
