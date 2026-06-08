@@ -17,35 +17,27 @@ window.authConfig = {
 /**
  * Load Clerk JS SDK dynamically from CDN
  */
+/**
+ * Return window.Clerk — the SDK is pre-loaded via the HTML <script> tag
+ * before this file runs (because auth.js has defer and Clerk script does not).
+ */
 async function loadClerkSDK() {
+    if (window.Clerk) {
+        return window.Clerk;
+    }
+    // Safety: wait up to 3s for Clerk to be available (handles slow CDN)
     return new Promise((resolve, reject) => {
-        if (window.Clerk) {
-            resolve(window.Clerk);
-            return;
-        }
-
-        const script = document.createElement("script");
-        script.src = CLERK_SDK_URL;
-        script.async = true;
-        script.crossOrigin = "anonymous";
-
-        script.onload = () => {
-            // Clerk v4: window.Clerk is set synchronously by the script.
-            // Give it a brief tick to fully assign before resolving.
-            setTimeout(() => {
-                if (window.Clerk) {
-                    resolve(window.Clerk);
-                } else {
-                    reject(new Error("Clerk SDK loaded but window.Clerk is undefined. Check CDN URL or ad-blockers."));
-                }
-            }, 50);
-        };
-
-        script.onerror = () => {
-            reject(new Error("Failed to load Clerk SDK from CDN. Check your internet connection."));
-        };
-
-        document.head.appendChild(script);
+        let attempts = 0;
+        const check = setInterval(() => {
+            attempts++;
+            if (window.Clerk) {
+                clearInterval(check);
+                resolve(window.Clerk);
+            } else if (attempts > 30) { // 30 * 100ms = 3s timeout
+                clearInterval(check);
+                reject(new Error("Clerk SDK failed to load from CDN after 3 seconds. Check your internet connection."));
+            }
+        }, 100);
     });
 }
 
