@@ -7,6 +7,14 @@ const OFFSCREEN_DOCUMENT_PATH = "offscreen.html";
 let isCreatingDocument = null; // Lock to prevent concurrent offscreen creation calls
 let recordingStartTime = null;
 
+// --- API Configuration ---
+// Switch between local dev server and the Vercel production deployment.
+// Update PRODUCTION_URL to your actual Vercel deployment URL after deploying.
+const PRODUCTION_URL = "https://ai-meeting-assistant.vercel.app";
+const API_BASE_URL = (typeof location !== "undefined" && location.hostname === "localhost")
+    ? "http://localhost:3000"
+    : PRODUCTION_URL;
+
 // Initialize state parameters on installation
 chrome.runtime.onInstalled.addListener(() => {
     chrome.storage.local.set({
@@ -120,9 +128,15 @@ async function hasOffscreenDocument() {
  */
 async function fetchClerkToken() {
     try {
-        const tabs = await chrome.tabs.query({ url: "*://localhost/*" });
+        // Query both localhost (dev) and production Vercel tabs for Clerk session
+        const [localTabs, prodTabs] = await Promise.all([
+            chrome.tabs.query({ url: "*://localhost/*" }),
+            chrome.tabs.query({ url: `${PRODUCTION_URL}/*` })
+        ]);
+        const tabs = [...localTabs, ...prodTabs];
+
         if (!tabs || tabs.length === 0) {
-            throw new Error("No active web application tabs detected on localhost.");
+            throw new Error("No active web application tab found. Please open the app and log in first.");
         }
 
         // Target the first matching tab to execute script context
@@ -139,13 +153,12 @@ async function fetchClerkToken() {
 
         const token = scriptResult[0]?.result;
         if (!token) {
-            throw new Error("User session not found. Please log in to your web application first.");
+            throw new Error("User session not found. Please log in to the web application first.");
         }
         return token;
     } catch (e) {
-        console.warn("Failed retrieving Clerk token via dynamic tab scripting, falling back to mock test token...", e.message);
-        // Fallback for testing environments or mock setups
-        return "mock_valid_token_sarah";
+        console.warn("Failed retrieving Clerk token via tab scripting:", e.message);
+        throw new Error("Could not get auth token. Open the app in a tab and log in first.");
     }
 }
 
@@ -164,7 +177,7 @@ async function generateSummaryAndSave() {
         const token = await fetchClerkToken();
         const durationSecs = recordingStartTime ? Math.round((Date.now() - recordingStartTime) / 1000) : 60;
 
-        const response = await fetch("http://localhost:3000/api/meetings", {
+        const response = await fetch(`${API_BASE_URL}/api/meetings`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
