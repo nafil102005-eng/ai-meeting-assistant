@@ -5,8 +5,8 @@
 
 // Clerk publishable key — pk_live_* for production (Vercel)
 const CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsuYWktbWVldGluZy1hc3Npc3RhbnQtc2V2ZW4udmVyY2VsJA";
-// Clerk SDK loaded from jsDelivr CDN — works on all domains including Vercel
-const CLERK_SDK_URL = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js";
+// Clerk v4 CDN: sets window.Clerk automatically on load (v5 changed this API, v4 matches our usage)
+const CLERK_SDK_URL = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@4/dist/clerk.browser.js";
 
 // Global auth state configuration
 window.authConfig = {
@@ -30,15 +30,19 @@ async function loadClerkSDK() {
         script.crossOrigin = "anonymous";
 
         script.onload = () => {
-            if (window.Clerk) {
-                resolve(window.Clerk);
-            } else {
-                reject(new Error("Clerk SDK loaded but window.Clerk is undefined."));
-            }
+            // Clerk v4: window.Clerk is set synchronously by the script.
+            // Give it a brief tick to fully assign before resolving.
+            setTimeout(() => {
+                if (window.Clerk) {
+                    resolve(window.Clerk);
+                } else {
+                    reject(new Error("Clerk SDK loaded but window.Clerk is undefined. Check CDN URL or ad-blockers."));
+                }
+            }, 50);
         };
 
         script.onerror = () => {
-            reject(new Error("Failed to load Clerk SDK script from CDN."));
+            reject(new Error("Failed to load Clerk SDK from CDN. Check your internet connection."));
         };
 
         document.head.appendChild(script);
